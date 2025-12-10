@@ -70,14 +70,21 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_PASSWORD }}
 
-      - name: Docker build & push (multi-arch)
-        if: ${{ github.event_name == 'push' }}
+      - name: Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.IMAGE_NAME }}
+          tags: |
+            type=sha,format=short
+            type=raw,value=latest
+
+      - name: Build and push to staging repo
+        id: build
         uses: docker/build-push-action@v6
         with:
           context: .
           file: ${{ env.DOCKERFILE }}
           platforms: linux/amd64,linux/arm64
           push: true
-          tags: |
-            ${{ env.IMAGE_NAME }}:1.0.${{ github.run_number }}
-            ${{ env.IMAGE_NAME }}:latest
+          tags: ${{ steps.meta.outputs.tags }}
