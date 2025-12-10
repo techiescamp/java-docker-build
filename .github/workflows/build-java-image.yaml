@@ -11,9 +11,6 @@ env:
   DOCKERFILE: ./Dockerfile
 
 jobs:
-  # ----------------------------------------------------
-  # COMMON ENVIRONMENT SETUP (REUSABLE JOB)
-  # ----------------------------------------------------
   setup_env:
     runs-on: ubuntu-latest
     outputs:
@@ -43,11 +40,6 @@ jobs:
         id: export
         run: echo "workspace=$(pwd)" >> $GITHUB_OUTPUT
 
-
-
-  # ----------------------------------------------------
-  # PR VALIDATION JOB
-  # ----------------------------------------------------
   pr_validation:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
@@ -64,7 +56,7 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
-          file: ${{ env.DO‌CKERFILE }}
+          file: ${{ env.DOCKERFILE }}
           platforms: linux/amd64
           tags: ${{ env.IMAGE_NAME }}:pr-${{ github.event.number }}
           load: true
@@ -80,11 +72,6 @@ jobs:
           format: table
           exit-code: "0"
 
-
-
-  # ----------------------------------------------------
-  # PUSH JOB → PUBLISH IMAGE
-  # ----------------------------------------------------
   push_publish:
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
