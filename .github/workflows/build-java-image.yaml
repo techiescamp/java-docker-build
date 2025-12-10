@@ -11,15 +11,13 @@ env:
   DOCKERFILE: ./Dockerfile
 
 jobs:
-  setup_env:
+  build:
     runs-on: ubuntu-latest
-    outputs:
-      workspace: ${{ steps.export.outputs.workspace }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up Java 21
+      - name: Set up Java 21 and Maven cache
         uses: actions/setup-java@v5
         with:
           distribution: temurin
@@ -32,27 +30,19 @@ jobs:
       - name: Set up Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Build Java App JAR
+      - name: Build with Maven (tests on)
         working-directory: ./java-app
         run: ./mvnw clean package
 
-      - name: Export workspace path
-        id: export
-        run: echo "workspace=$(pwd)" >> $GITHUB_OUTPUT
-
-  pr_validation:
-    if: github.event_name == 'pull_request'
-    runs-on: ubuntu-latest
-    needs: setup_env
-
-    steps:
-      - name: Lint Dockerfile
+      - name: Lint Dockerfile (hadolint)
+        if: ${{ github.event_name == 'pull_request' }}
         uses: hadolint/hadolint-action@v3.1.0
         with:
           dockerfile: ${{ env.DOCKERFILE }}
           failure-threshold: error
 
-      - name: Docker build (no push)
+      - name: Docker build (no push) for PR
+        if: ${{ github.event_name == 'pull_request' }}
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -62,7 +52,8 @@ jobs:
           load: true
           push: false
 
-      - name: Trivy scan
+      - name: Trivy scan (image)
+        if: ${{ github.event_name == 'pull_request' }}
         uses: aquasecurity/trivy-action@0.28.0
         with:
           scan-type: image
@@ -70,21 +61,17 @@ jobs:
           severity: HIGH,CRITICAL
           ignore-unfixed: true
           format: table
-          exit-code: "0"
+          exit-code: '0'
 
-  push_publish:
-    if: github.event_name == 'push'
-    runs-on: ubuntu-latest
-    needs: setup_env
-
-    steps:
       - name: Login to Docker Hub
+        if: ${{ github.event_name == 'push' }}
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_PASSWORD }}
 
       - name: Docker metadata
+        if: ${{ github.event_name == 'push' }}
         id: meta
         uses: docker/metadata-action@v5
         with:
@@ -93,7 +80,9 @@ jobs:
             type=sha,format=short
             type=raw,value=latest
 
-      - name: Build and push multi-arch image
+      - name: Build and push to staging repo
+        if: ${{ github.event_name == 'push' }}
+        id: build
         uses: docker/build-push-action@v6
         with:
           context: .
